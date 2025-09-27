@@ -16,7 +16,8 @@ class Parser():
     def _create_fw_data_template(self):
         categories = [
             'fw_rules', 'NATs', 'routes', 
-            'addresses', 'services', 'service-groups'
+            'addresses', 'address-groups',
+            'services', 'service-groups'
         ]
         nat_cats = {'src': {}, 'dst': {}, 'static':{}}
         fw_data_template = {c:{} for c in categories}
@@ -63,6 +64,14 @@ class ParserSRX(Parser):
             ### Address:
             elif 'address-book' in line and not 'address-set' in line:
                 self.__parse_address(line, logsys)
+            ### Address-set:
+            elif 'address-book' in line and 'address-set' in line:
+                self.__parse_address_set(line, logsys)
+            ## Services:
+            elif 'applications' in line and 'application' in line:
+                self.__parse_app(line, logsys)
+            elif 'application-set' in line and 'application':
+                self.__parse_app_set(line, logsys)
             ### Hostname:
             elif 'system' in line and 'host-name' in line:
                 self.hostname = line[-1]
@@ -150,12 +159,30 @@ class ParserSRX(Parser):
         }
         self.fw_data[logsys]['addresses'][addr_name] = address_data
 
-parser_srx = ParserSRX(r'F:\Programowanie\Minecrawler\MC\config_files\srx.txt')
-print(parser_srx)
+    def __parse_address_set(self, line, logsys):
+        addr = line[line.index('address')+1]
+        set_name = line[line.index('address-set')+1]
+        if set_name not in self.fw_data[logsys]['address-groups']:
+            self.fw_data[logsys]['address-groups'][set_name] = [addr]
+        else:
+            self.fw_data[logsys]['address-groups'][set_name].append(addr)
+    
+    def __parse_app(self, line, logsys):
+        app_name = line[line.index('application')+1]
+        key = line[line.index('application')+2]
+        val = line[line.index('application')+3]
+        if app_name not in self.fw_data[logsys]['services']:
+            self.fw_data[logsys]['services'][app_name] = {}
+        self.fw_data[logsys]['services'][app_name][key] = val
+    
+    def __parse_app_set(self, line, logsys):
+        set_name = line[line.index('application-set')+1]
+        app_name = line[line.index('application')+1]
+        if set_name not in self.fw_data[logsys]['service-groups']:
+            self.fw_data[logsys]['service-groups'][set_name] = []
+        self.fw_data[logsys]['service-groups'][set_name].append(app_name)
+
+parser_srx = ParserSRX(r'F:\Programowanie\Bricklayer\config_files\srx.txt')
 parser_srx()
 
 
-data = parser_srx.get_data()
-for ls in data:
-    for add in data[ls]['addresses']:
-        print(add, '\t', data[ls]['addresses'][add])

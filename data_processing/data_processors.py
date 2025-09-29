@@ -1,7 +1,7 @@
 class Process():
-    def __init__(self, conf_file):
-        self.__fw_data = {}
-        self.__conf_file = conf_file
+    def __init__(self, fw_data):
+        self.__fw_data = fw_data
+
     
     def __call__(self):
         pass
@@ -11,6 +11,6 @@ class Process():
     
 
 class ProcessSRX(Process):
-    def __init__(self, conf_file):
-        super().__init__(conf_file)
+    def __init__(self, fw_data):
+        super().__init__(fw_data)
 

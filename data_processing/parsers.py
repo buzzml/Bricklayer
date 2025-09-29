@@ -1,6 +1,6 @@
 from copy import deepcopy
 import traceback
-from misc import is_ipv4_with_mask
+from isip import is_ipv4_with_mask, is_ipv4_without_mask
 
 
 class Parser():
@@ -20,7 +20,9 @@ class Parser():
             'services', 'service-groups'
         ]
         nat_cats = {'src': {}, 'dst': {}, 'static':{}}
+        route_cats = {'static': [], 'direct': [], 'local': []}
         fw_data_template = {c:{} for c in categories}
+        fw_data_template['routes'] = route_cats
         fw_data_template['NATs'] = nat_cats
         return fw_data_template
     
@@ -53,6 +55,8 @@ class ParserSRX(Parser):
     @Parser._open_file
     def __parse_data(self, file):
         for line in file:
+            if 'set' not in line: 
+                continue
             line = line.strip()
             line = line.split()
             line, logsys = self.__get_ls_and_new_line(line)
@@ -67,15 +71,27 @@ class ParserSRX(Parser):
             ### Address-set:
             elif 'address-book' in line and 'address-set' in line:
                 self.__parse_address_set(line, logsys)
-            ## Services:
+            ### Services:
             elif 'applications' in line and 'application' in line:
                 self.__parse_app(line, logsys)
+            ### Service-Groups:
             elif 'application-set' in line and 'application':
                 self.__parse_app_set(line, logsys)
+            ### Static Routes:
+            elif {'routing-options', 'static', 'route'}.issubset(set(line)):
+                self.__parse_static_route(line, logsys)
+            ### Local Routes:
+            elif {'interfaces', 'family', 'inet'}.issubset(set(line)):
+                self.__parse_intf_local_route(line, logsys)
+            ### Static NATs:
+            elif {'nat', 'static', 'rule-set'}.issubset(set(line)):
+                self.__parse_static_nat(line, logsys)
             ### Hostname:
             elif 'system' in line and 'host-name' in line:
                 self.hostname = line[-1]
-
+        
+        ## Clear just for parsing vars:
+        del self.__stat_nat_src_zone
 
     ## Extract logical system from line, 
     ## returns tuple(line without logical-system keyword and name, logical-system name)
@@ -181,8 +197,46 @@ class ParserSRX(Parser):
         if set_name not in self.fw_data[logsys]['service-groups']:
             self.fw_data[logsys]['service-groups'][set_name] = []
         self.fw_data[logsys]['service-groups'][set_name].append(app_name)
+    
+    def __parse_static_route(self, line, logsys):
+        dest_ip = line[line.index('route')+1]
+        next_hop = line[line.index('next-hop')+1]
+        route_data = {'dest IP': dest_ip}
+        if is_ipv4_without_mask(next_hop):
+            key = 'next hop IP'
+        else:
+            key = 'next hop interface'
+        route_data[key] = next_hop
+        self.fw_data[logsys]['routes']['static'].append(route_data)
+    
+    def __parse_intf_local_route(self, line, logsys):
+        int_ip = line[line.index('address')+1]
+        int_nbr = line[line.index('interfaces')+1]
+        route_data = {'interface': int_nbr, 'IP': int_ip}
+        self.fw_data[logsys]['routes']['local'].append(route_data)
+    
+    def __parse_static_nat(self, line, logsys):
+        if 'from' in line and 'zone' in line:
+            self.__stat_nat_src_zone = line[line.index('zone')+1]
+        else:
+            nat_rule_name = line[line.index('rule') + 1]
+            static_nats = self.fw_data[logsys]['NATs']['static']
+            if nat_rule_name not in static_nats:
+                keys = ['src zone', 'orginal IP', 'NATed IP']
+                static_nats[nat_rule_name] = {k:'' for k in keys}
+                static_nats[nat_rule_name]['src zone'] = self.__stat_nat_src_zone
 
-parser_srx = ParserSRX(r'F:\Programowanie\Bricklayer\config_files\srx.txt')
+            if 'match' in line and 'source-address' in line:
+                org_ip = line[line.index('source-address')+1]
+                static_nats[nat_rule_name]['orginal IP'] = org_ip
+            elif 'then' in line and 'static-nat' in line:
+                nated_ip = line[line.index('static-nat')+1]
+                static_nats[nat_rule_name]['NATed IP'] = nated_ip
+
+
+parser_srx = ParserSRX(r'F:\Programowanie\Bricklayer\config_files\srx2.txt')
 parser_srx()
 
+data = parser_srx.get_data()
+print(data['root']['NATs']['static'])
 

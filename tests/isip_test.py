@@ -1,5 +1,5 @@
 import pytest
-from data_processing.misc import is_ipv4_with_mask
+from data_processing.isip import is_ipv4_with_mask, is_ipv4_without_mask
 
 
 @pytest.mark.parametrize("param1, expected", [
@@ -18,5 +18,28 @@ from data_processing.misc import is_ipv4_with_mask
     ('8.8.256.8/31', False),
     ('8.8.8.8 255.255.0.255', False),
 ])
-def test_isip(param1, expected):
+def test_isip_mask(param1, expected):
     assert is_ipv4_with_mask(param1) == expected
+
+
+
+@pytest.mark.parametrize("param1, expected", [
+    ('192.168.0.1', True),
+    ('255.255.255.255', True),
+    ('0.0.0.0', True),
+    ('10.10.10.10', True),
+    ('192.168.0.0', True),
+    ('1.1.1.1', True),
+    ('2001:0db8:0000:0000:0000:0000:1428:57ab', False),
+    ('192.16.6.6255.255.255.255', False),
+    ('www.google.com', False),
+    ('10.10.10.10/32', False),
+    ('192.168.0.1/25', False),
+    ('255.255.255.255 255.255.255.255', False),
+    ('0.0.0.0 0.0.0.0', False),
+    ('10.10.10.10 255.255.255.255', False),
+    ('192.168.0.0 255.255.255.0', False),
+    ('1.1.1.1/32', False),
+])
+def test_isip_no_mask(param1, expected):
+    assert is_ipv4_without_mask(param1) == expected

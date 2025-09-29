@@ -1,14 +1,28 @@
 import re
 
-
-def is_ipv4_with_mask(address):
+def is_ipv4_without_mask(ip: str) -> bool:
+    ip = ip.split('.')
+    try:
+        ip = [int(i) for i in ip]
+    except (ValueError, TypeError):
+        return False
+    else:
+        if len(ip) != 4:
+            return False
+        for octet in ip:
+            if not (0 <= octet <= 255):
+                return False
+        return True
+        
+## Checks if address is IPv4 with mask in /x or y.y.y.y format
+def is_ipv4_with_mask(address: str) -> bool:
     if '/' in address:
         ip = address.split('/')[0]
         mask = address.split('/')[-1]
         try:
             mask = int(mask)
         except (ValueError, TypeError):
-            print(f'{address} Mask is not in valid format')
+            return False
         else:
             if mask > 32:
                 return False
@@ -22,7 +36,7 @@ def is_ipv4_with_mask(address):
             try:
                 mask = [int(m) for m in mask]
             except (ValueError, TypeError):
-                print(f'{address} Mask is not in valid format')
+                return False
             else:
                 for i in range(3):
                     if (
@@ -33,15 +47,5 @@ def is_ipv4_with_mask(address):
                         return False
     else:
         return False
+    return is_ipv4_without_mask(ip)
 
-    ip = ip.split('.')
-    try:
-        ip = [int(i) for i in ip]
-    except (ValueError, TypeError):
-        print(f'{address} Mask is not in valid format')
-    else:
-        for octet in ip:
-            if not (0 <= octet <= 255):
-                return False
-    return True
-    

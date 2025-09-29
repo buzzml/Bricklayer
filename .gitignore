@@ -22,3 +22,6 @@ Thumbs.db
 
 # FW Conf files
 config_files/
+
+# Office Files
+*.xlsm

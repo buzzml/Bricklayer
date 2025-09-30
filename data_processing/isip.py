@@ -1,5 +1,3 @@
-import re
-
 def is_ipv4_without_mask(ip: str) -> bool:
     ip = ip.split('.')
     try:

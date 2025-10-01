@@ -1,5 +1,6 @@
 from data_processing.data_processors import ProcessSRX
 from data_processing.parsers import ParserSRX
+from data_processing.config_data import ConfigDataTXT
 
 
 class Generate():
@@ -13,8 +14,9 @@ class Generate():
         pass
 
 
+conf_data_txt = ConfigDataTXT(r'F:\Programowanie\Bricklayer\config_files\srx2.txt')
 
-parser_srx = ParserSRX(r'F:\Programowanie\Bricklayer\config_files\srx2.txt')
+parser_srx = ParserSRX(conf_data_txt)
 parser_srx()
 
 

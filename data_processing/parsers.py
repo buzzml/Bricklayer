@@ -1,13 +1,12 @@
 from copy import deepcopy
-import traceback
 from data_processing.isip import is_ipv4_with_mask, is_ipv4_without_mask
-#from .isip import is_ipv4_with_mask, is_ipv4_without_mask #tests
 import re
+from data_processing.config_data import ConfigData
 
 
 class Parser():
-    def __init__(self, conf_file):
-        self.__conf_file = conf_file
+    def __init__(self, conf_data: ConfigData):
+        self._conf_data = conf_data
         self._hostname = ''
         self._fw_data = {}
 
@@ -22,7 +21,7 @@ class Parser():
             'fw rules', 'NATs', 'routes', 
             'addresses', 'address-groups',
             'services', 'service-groups',
-            'interfaces'
+            'interfaces',
         ]
         nat_cats = {'src': {}, 'dst': {}, 'static':{}}
         route_cats = {'static': [], 'direct': [], 'local': []}
@@ -34,22 +33,9 @@ class Parser():
     def get_data(self):
         return self._hostname, self._fw_data
     
-    def _open_file(func):
-        def wrapper(self, *args, **kwargs):
-            try:
-                file = open(self.__conf_file)
-            except Exception as e:
-                traceback.print_exc()
-            else:
-                func(self, file)
-            finally:
-                file.close()
-        return wrapper
-
-
 class ParserSRX(Parser):
-    def __init__(self, conf_file):
-        super().__init__(conf_file)
+    def __init__(self, conf_data: ConfigData):
+        super().__init__(conf_data)
         self.__vendor = 'SRX'
 
     def __call__(self):
@@ -79,10 +65,8 @@ class ParserSRX(Parser):
                 break
         return result
 
-
-    @Parser._open_file
-    def __parse_data(self, file):
-        for line in file:
+    def __parse_data(self):
+        for line in self._conf_data.get():
             if 'set' not in line: 
                 continue
             line = line.strip()

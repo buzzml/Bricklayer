@@ -1,12 +1,18 @@
 import pytest
+from data_processing.config_data import ConfigData
 from data_processing.parsers import ParserSRX
 
 ## Abbreviation used in comments:
 ## LS - Logical-System
 ## RI - Routing Instance
 
+class DummyConfigData(ConfigData):
+    def get(self):
+        return None
 
-parser_srx = ParserSRX('test')
+
+dummy_conf_data = DummyConfigData()
+parser_srx = ParserSRX(dummy_conf_data)
 
 ## Test Command Identification Method
 ### Firewall Rules Commands:

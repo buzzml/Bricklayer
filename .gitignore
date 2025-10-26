@@ -6,6 +6,7 @@ __pycache__/
 env/
 venv/
 *.env
+test_conn_true.py
 
 # IDE
 .vscode/

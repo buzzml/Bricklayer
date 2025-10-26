@@ -25,5 +25,3 @@ process_srx = ProcessSRX(fwdata)
 process_srx.write_data_to_file('json', f'/home/obojetnie/Projekty_Python/Bricklayer/config_files/{hostname}.json')
 
 
-
-print('\n', fwdata['root']['interfaces'])

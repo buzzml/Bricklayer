@@ -1,5 +1,5 @@
 from data_processing.data_processors import ProcessSRX
-from data_processing.parsers import ParserSRX
+from data_processing.parsers import ParserSrxSets
 from data_processing.config_data import ConfigDataTXT
 
 
@@ -14,11 +14,16 @@ class Generate():
         pass
 
 
-conf_data_txt = ConfigDataTXT(r'F:\Programowanie\Bricklayer\config_files\srx2.txt')
+conf_data_txt = ConfigDataTXT(r'/home/obojetnie/Projekty_Python/Bricklayer/config_files/srx_sets_2.txt')
 
-parser_srx = ParserSRX(conf_data_txt)
-parser_srx()
-
+parser_srx = ParserSrxSets(conf_data_txt)
+parser_srx.run()
 
 hostname, fwdata = parser_srx.get_data()
+
+process_srx = ProcessSRX(fwdata)
+process_srx.write_data_to_file('json', f'/home/obojetnie/Projekty_Python/Bricklayer/config_files/{hostname}.json')
+
+
+
 print('\n', fwdata['root']['interfaces'])

@@ -2,19 +2,25 @@ from copy import deepcopy
 from data_processing.isip import is_ipv4_with_mask, is_ipv4_without_mask
 import re
 from data_processing.config_data import ConfigData
+from abc import ABC, abstractmethod
 
 
-class Parser():
+class Parser(ABC):
     def __init__(self, conf_data: ConfigData):
         self._conf_data = conf_data
         self._hostname = ''
         self._fw_data = {}
+        self._conf_type = ''
 
-    def __call__(self):
-        return self.get_data()
+    @abstractmethod
+    def run(self):
+        pass
 
     def __str__(self):
-        return f'Parser {self.__vendor}'
+        name = f'Parser {self.__vendor}'
+        if bool(self._conf_type):
+            name += f' {self._conf_type}'
+        return name
     
     def _create_fw_data_template(self):
         categories = [
@@ -32,28 +38,35 @@ class Parser():
     
     def get_data(self):
         return self._hostname, self._fw_data
-    
-class ParserSRX(Parser):
+
+
+class ParserSrx(Parser):
     def __init__(self, conf_data: ConfigData):
         super().__init__(conf_data)
         self.__vendor = 'SRX'
+    
+## For parsing in Set-style config; commands starting with set keyword:
+class ParserSrxSets(ParserSrx):
+    def __init__(self, conf_data: ConfigData):
+        super().__init__(conf_data)
+        self._conf_type = 'Set-style'
 
-    def __call__(self):
+    def run(self):
         self._fw_data = {'root': self._create_fw_data_template()}
         self.__parse_data()
         return self._fw_data
 
     def __identify_comm(self, comm: str) -> str:
         comm_type_to_pattern = {
-            'fw rules': 'set .*security policies .* policy .*',
-            'address-groups': 'set .*security .* address-set .*',
-            'addresses': 'set .*security .* address .*',
-            'services': 'set .*applications application .*',
-            'service-groups': 'set .*application-set .* application .*',
-            'static route': 'set .*routing-options static route .*',
-            'interface IPv4': 'set .*interfaces .* unit .* family inet address .*',
-            'intf to Routing Instance': 'set .*routing-instances .* interface .*',
-            'static NAT': 'set .*security nat static rule-set',
+            'fw rules': '^set (?!groups ).*security policies .* policy .*',
+            'address-groups': '^set (?!groups ).*security .* address-set .*',
+            'addresses': '^set (?!groups ).*security .* address .*',
+            'services': '^set (?!groups ).*applications application .*',
+            'service-groups': '^set (?!groups ).*application-set .* application .*',
+            'static route': '^set (?!groups ).*routing-options static route .*',
+            'interface IPv4': '^set (?!groups ).*interfaces .* unit .* family inet address .*',
+            'intf to Routing Instance': '^set (?!groups ).*routing-instances .* interface .*',
+            'static NAT': '^set (?!groups ).*security nat static rule-set',
             'hostname': 'set system host-name .*',
         }
 
@@ -70,64 +83,65 @@ class ParserSRX(Parser):
             if 'set' not in line: 
                 continue
             line = line.strip()
-            line = line.split()
-            line, logsys = self.__get_ls_and_new_line(line)
+            comm_splited = line.split()
+            comm_splited, logsys = self.__get_ls_and_new_comm_splited(comm_splited)
 
             ## Parse:
+            match self.__identify_comm(line):
             ### Firewall Rule:
-            if 'security' in line and 'policies' in line:
-                result = self.__parse_fw_rule(line, logsys)
-                rule_name, key, val = result
-                self.__add_fw_rule_to_fw_data(logsys, rule_name, key, val, line)
-            ### Address:
-            elif 'address-book' in line and not 'address-set' in line:
-                addr_name, address_data = self.__parse_address(line, logsys)
-                self._fw_data[logsys]['addresses'][addr_name] = address_data
-            ### Address-set:
-            elif 'address-book' in line and 'address-set' in line:
-                set_name, addr = self.__parse_address_set(line, logsys)
-                if set_name not in self._fw_data[logsys]['address-groups']:
-                    self._fw_data[logsys]['address-groups'][set_name] = [addr]
-                else:
-                    self._fw_data[logsys]['address-groups'][set_name].append(addr)
-            ### Services:
-            elif 'applications' in line and 'application' in line:
-                app_name, key, val = self.__parse_app(line, logsys)
-                if app_name not in self._fw_data[logsys]['services']:
-                    self._fw_data[logsys]['services'][app_name] = {}
-                self._fw_data[logsys]['services'][app_name][key] = val
-            ### Service-Groups:
-            elif 'application-set' in line and 'application':
-                set_name, app_name = self.__parse_app_set(line, logsys)
-                if set_name not in self._fw_data[logsys]['service-groups']:
-                    self._fw_data[logsys]['service-groups'][set_name] = []
-                self._fw_data[logsys]['service-groups'][set_name].append(app_name)
-            ### Static Routes:
-            elif {'routing-options', 'static', 'route'}.issubset(set(line)):
-                key, next_hop, dest_ip = self.__parse_static_route(line, logsys)
-                route_data = {'dest IP': dest_ip}
-                route_data[key] = next_hop
-                self._fw_data[logsys]['routes']['static'].append(route_data)
-            ### Local Routes:
-            elif {'interfaces', 'family', 'inet'}.issubset(set(line)):
-                intf_data = self._fw_data[logsys]['interfaces']
-                int_ip, int_nbr, unit = self.__parse_intf_local_route(line)
-                if int_nbr not in intf_data:
-                    intf_data[int_nbr] = {}
-                intf_data[int_nbr][unit] = {'IP': int_ip}
-            ### Static NATs:
-            elif {'nat', 'static', 'rule-set'}.issubset(set(line)):
-                if 'from' in line and 'zone' in line:
-                    self.__stat_nat_src_zone = line[line.index('zone')+1]
-                else:
-                    static_nats = self._fw_data[logsys]['NATs']['static']
-                    nat_rule_name, key, val = self.__parse_static_nat(line, logsys)
-                    if nat_rule_name not in static_nats:
-                        static_nats[nat_rule_name] = {'src zone': self.__stat_nat_src_zone}
-                    static_nats[nat_rule_name][key] = val
-            ### Hostname:
-            elif 'system' in line and 'host-name' in line:
-                self._hostname = line[-1]
+                case 'fw_rule':
+                    result = self.__parse_fw_rule(comm_splited, logsys)
+                    rule_name, key, val = result
+                    self.__add_fw_rule_to_fw_data(logsys, rule_name, key, val, comm_splited)
+                ### Address:
+                case 'addresses':
+                    addr_name, address_data = self.__parse_address(comm_splited, logsys)
+                    self._fw_data[logsys]['addresses'][addr_name] = address_data
+                ### Address-set:
+                case 'address-groups':
+                    set_name, addr = self.__parse_address_set(comm_splited, logsys)
+                    if set_name not in self._fw_data[logsys]['address-groups']:
+                        self._fw_data[logsys]['address-groups'][set_name] = [addr]
+                    else:
+                        self._fw_data[logsys]['address-groups'][set_name].append(addr)
+                ### Services:
+                case 'services':
+                    app_name, key, val = self.__parse_app(comm_splited, logsys)
+                    if app_name not in self._fw_data[logsys]['services']:
+                        self._fw_data[logsys]['services'][app_name] = {}
+                    self._fw_data[logsys]['services'][app_name][key] = val
+                ### Service-Groups:
+                case 'service-groups':
+                    set_name, app_name = self.__parse_app_set(comm_splited, logsys)
+                    if set_name not in self._fw_data[logsys]['service-groups']:
+                        self._fw_data[logsys]['service-groups'][set_name] = []
+                    self._fw_data[logsys]['service-groups'][set_name].append(app_name)
+                ### Static Routes:
+                case 'static route':
+                    key, next_hop, dest_ip = self.__parse_static_route(comm_splited, logsys)
+                    route_data = {'dest IP': dest_ip}
+                    route_data[key] = next_hop
+                    self._fw_data[logsys]['routes']['static'].append(route_data)
+                ### Local Routes:
+                case 'interface IPv4':
+                    intf_data = self._fw_data[logsys]['interfaces']
+                    int_ip, int_nbr, unit = self.__parse_intf_local_route(comm_splited)
+                    if int_nbr not in intf_data:
+                        intf_data[int_nbr] = {}
+                    intf_data[int_nbr][unit] = {'IP': int_ip}
+                ### Static NATs:
+                case 'static NAT':
+                    if 'from' in comm_splited and 'zone' in comm_splited:
+                        self.__stat_nat_src_zone = comm_splited[comm_splited.index('zone')+1]
+                    else:
+                        static_nats = self._fw_data[logsys]['NATs']['static']
+                        nat_rule_name, key, val = self.__parse_static_nat(comm_splited, logsys)
+                        if nat_rule_name not in static_nats:
+                            static_nats[nat_rule_name] = {'src zone': self.__stat_nat_src_zone}
+                        static_nats[nat_rule_name][key] = val
+                ### Hostname:
+                case 'hostname':
+                    self._hostname = comm_splited[-1]
         
         ## Clear: just for parsing vars:
         try:
@@ -135,29 +149,29 @@ class ParserSRX(Parser):
         except AttributeError as e:
             print(e)
 
-    ## Extract logical system from line, 
-    ## returns tuple(line without logical-system keyword and name, logical-system name)
-    def __get_ls_and_new_line(self, line: str) -> tuple[str, str]:
-        if line[1] == 'logical-systems':
-            logsys = line[2]
+    ## Extract logical system from comm_splited, 
+    ## returns tuple(comm_splited without logical-system keyword and name, logical-system name)
+    def __get_ls_and_new_comm_splited(self, comm_splited: str) -> tuple[str, str]:
+        if comm_splited[1] == 'logical-systems':
+            logsys = comm_splited[2]
             if logsys not in self._fw_data:
                 self._fw_data[logsys] = self._create_fw_data_template()
-                line = line[:1] + line[3:]
+                comm_splited = comm_splited[:1] + comm_splited[3:]
         else:
             logsys = 'root'
-        return line, logsys
+        return comm_splited, logsys
     
     def __add_fw_rule_to_fw_data(
             self, logsys:str, 
             rule_name: str, 
             key: str, 
             val: str,
-            line: list[str]
+            comm_splited: list[str]
     ):
         if rule_name not in self._fw_data[logsys]['fw rules']:
             rule_data = self.__fw_rule_data_template()
             self._fw_data[logsys]['fw rules'][rule_name] = rule_data
-            zones = self.__parse_fw_rule_zones(line)
+            zones = self.__parse_fw_rule_zones(comm_splited)
             rule_data['src_zone'], rule_data['dst_zone'] = zones
         else:
             rule_data = self._fw_data[logsys]['fw rules'][rule_name]
@@ -168,11 +182,11 @@ class ParserSRX(Parser):
             rule_data['dst_zone'].pop(rule_data['src_zone'].index('any'))
         rule_data[key].append(val)
 
-    def __parse_fw_rule_zones(self, line: list[str]):
-        if 'global' not in line:
-            src_zones = [line[line.index('from-zone')+1]]
-            dst_zones = [line[line.index('to-zone')+1]]
-        elif 'global' in line:
+    def __parse_fw_rule_zones(self, comm_splited: list[str]):
+        if 'global' not in comm_splited:
+            src_zones = [comm_splited[comm_splited.index('from-zone')+1]]
+            dst_zones = [comm_splited[comm_splited.index('to-zone')+1]]
+        elif 'global' in comm_splited:
             src_zones = ['any']
             dst_zones = ['any']            
         else:
@@ -180,17 +194,17 @@ class ParserSRX(Parser):
         return src_zones, dst_zones
 
     ## Parse rule to self._fw_data
-    def __parse_fw_rule(self, line: list[str], logsys: str):
-        rule_name = line[line.index('policy')+1]
+    def __parse_fw_rule(self, comm_splited: list[str], logsys: str):
+        rule_name = comm_splited[comm_splited.index('policy')+1]
         
-        if 'description' in line:
-            desc_indx = line.index('description')
-            desc = line[desc_indx+1:]
+        if 'description' in comm_splited:
+            desc_indx = comm_splited.index('description')
+            desc = comm_splited[desc_indx+1:]
             desc = ' '.join(desc)
             result = rule_name, 'description', desc
-        elif 'match' in line:
-            match_cat = line[line.index('match')+1]
-            match_val = line[line.index('match')+2]
+        elif 'match' in comm_splited:
+            match_cat = comm_splited[comm_splited.index('match')+1]
+            match_val = comm_splited[comm_splited.index('match')+2]
             cat_to_key = {
                 'from-zone': 'src_zone', 'to-zone': 'dst_zone', 
                 'source-address': 'src_IP', 'destination-address': 'dst_IP',
@@ -199,13 +213,13 @@ class ParserSRX(Parser):
             key = cat_to_key[match_cat]
             result = rule_name, key, match_val
 
-        elif 'then' in line:
-            if line[-1] in ['permit', 'deny']:
-                result = rule_name, 'term_action', line[-1]
+        elif 'then' in comm_splited:
+            if comm_splited[-1] in ['permit', 'deny']:
+                result = rule_name, 'term_action', comm_splited[-1]
             else:
-                result = rule_name, 'non_term_action', line[-1]
+                result = rule_name, 'non_term_action', comm_splited[-1]
         else:
-            raise Exception(f'Firewall Rule command not processed in ParserSRX.__parse_fw_rule, \n {line}')
+            raise Exception(f'Firewall Rule command not processed in ParserSRX.__parse_fw_rule, \n {comm_splited}')
         return result
 
     def __fw_rule_data_template(self) -> dict[str, list[str]]:
@@ -217,9 +231,9 @@ class ParserSRX(Parser):
         ]
         return {key:[] for key in keys}
 
-    def __parse_address(self, line, logsys):
-        addr = line[-1]
-        addr_name = line[-2]
+    def __parse_address(self, comm_splited, logsys):
+        addr = comm_splited[-1]
+        addr_name = comm_splited[-2]
         if '-' in addr:
             addr_type = 'range'
             addr = addr.split('-')
@@ -233,46 +247,46 @@ class ParserSRX(Parser):
         }
         return addr_name, address_data
 
-    def __parse_address_set(self, line, logsys):
-        addr = line[line.index('address')+1]
-        set_name = line[line.index('address-set')+1]
+    def __parse_address_set(self, comm_splited, logsys):
+        addr = comm_splited[comm_splited.index('address')+1]
+        set_name = comm_splited[comm_splited.index('address-set')+1]
         return set_name, addr
     
-    def __parse_app(self, line, logsys):
-        app_name = line[line.index('application')+1]
-        key = line[line.index('application')+2]
-        val = line[line.index('application')+3]
+    def __parse_app(self, comm_splited, logsys):
+        app_name = comm_splited[comm_splited.index('application')+1]
+        key = comm_splited[comm_splited.index('application')+2]
+        val = comm_splited[comm_splited.index('application')+3]
         return app_name, key, val
     
-    def __parse_app_set(self, line, logsys):
-        set_name = line[line.index('application-set')+1]
-        app_name = line[line.index('application')+1]
+    def __parse_app_set(self, comm_splited, logsys):
+        set_name = comm_splited[comm_splited.index('application-set')+1]
+        app_name = comm_splited[comm_splited.index('application')+1]
         return set_name, app_name
     
-    def __parse_static_route(self, line, logsys):
-        dest_ip = line[line.index('route')+1]
-        next_hop = line[line.index('next-hop')+1]
+    def __parse_static_route(self, comm_splited, logsys):
+        dest_ip = comm_splited[comm_splited.index('route')+1]
+        next_hop = comm_splited[comm_splited.index('next-hop')+1]
         if is_ipv4_without_mask(next_hop):
             key = 'next hop IP'
         else:
             key = 'next hop interface'
         return key, next_hop, dest_ip
     
-    def __parse_intf_local_route(self, line):
-        get = lambda string: line[line.index(string)+1]
+    def __parse_intf_local_route(self, comm_splited):
+        get = lambda string: comm_splited[comm_splited.index(string)+1]
         int_ip = get('address')
         int_numbr = get('interfaces')
         unit = get('unit')
         return int_ip, int_numbr, unit
     
-    def __parse_static_nat(self, line, logsys):
-        nat_rule_name = line[line.index('rule') + 1]
-        if 'match' in line and 'source-address' in line:
+    def __parse_static_nat(self, comm_splited, logsys):
+        nat_rule_name = comm_splited[comm_splited.index('rule') + 1]
+        if 'match' in comm_splited and 'source-address' in comm_splited:
             key = 'orginal IP'
-            val = line[line.index('source-address')+1]
-        elif 'then' in line and 'static-nat' in line:
+            val = comm_splited[comm_splited.index('source-address')+1]
+        elif 'then' in comm_splited and 'static-nat' in comm_splited:
             key = 'NATed IP'
-            val = line[line.index('static-nat')+1]
+            val = comm_splited[comm_splited.index('static-nat')+1]
         return nat_rule_name, key, val
 
 

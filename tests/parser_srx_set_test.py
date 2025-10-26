@@ -1,18 +1,12 @@
 import pytest
-from data_processing.config_data import ConfigData
-from data_processing.parsers import ParserSRX
+from data_processing.parsers import ParserSrxSets
 
 ## Abbreviation used in comments:
 ## LS - Logical-System
 ## RI - Routing Instance
 
-class DummyConfigData(ConfigData):
-    def get(self):
-        return None
 
-
-dummy_conf_data = DummyConfigData()
-parser_srx = ParserSRX(dummy_conf_data)
+parser_srx = ParserSrxSets('test')
 
 ## Test Command Identification Method
 ### Firewall Rules Commands:
@@ -40,7 +34,7 @@ parser_srx = ParserSRX(dummy_conf_data)
     ]
 )
 def test_ident_comm_fw_rules(command):
-    tested = parser_srx._ParserSRX__identify_comm
+    tested = parser_srx._ParserSrxSets__identify_comm
     assert tested(command) == 'fw rules'
 
 ##########################################################################
@@ -66,7 +60,7 @@ def test_ident_comm_fw_rules(command):
     ]
 )
 def test_ident_comm_addrs(command):
-    tested = parser_srx._ParserSRX__identify_comm
+    tested = parser_srx._ParserSrxSets__identify_comm
     assert tested(command) == 'addresses'
 
 ##########################################################################
@@ -93,7 +87,7 @@ def test_ident_comm_addrs(command):
     ]
 )
 def test_ident_comm_addr_set(command):
-    tested = parser_srx._ParserSRX__identify_comm
+    tested = parser_srx._ParserSrxSets__identify_comm
     assert tested(command) == 'address-groups'
 
 
@@ -115,7 +109,7 @@ def test_ident_comm_addr_set(command):
     ]
 )
 def test_ident_comm_apps(command):
-    tested = parser_srx._ParserSRX__identify_comm
+    tested = parser_srx._ParserSrxSets__identify_comm
     assert tested(command) == 'services'
 
 ##########################################################################
@@ -141,7 +135,7 @@ def test_ident_comm_apps(command):
     ]
 )
 def test_ident_comm_intf_logic(command):
-    tested = parser_srx._ParserSRX__identify_comm
+    tested = parser_srx._ParserSrxSets__identify_comm
     assert tested(command) == 'static route'
 
 ##########################################################################
@@ -162,7 +156,7 @@ def test_ident_comm_intf_logic(command):
     ]
 )
 def test_ident_comm_intf_addr(command):
-    tested = parser_srx._ParserSRX__identify_comm
+    tested = parser_srx._ParserSrxSets__identify_comm
     assert tested(command) == 'interface IPv4'
 
 ##########################################################################
@@ -179,7 +173,7 @@ def test_ident_comm_intf_addr(command):
     ]
 )
 def test_ident_comm_intf_to_ri(command):
-    tested = parser_srx._ParserSRX__identify_comm 
+    tested = parser_srx._ParserSrxSets__identify_comm 
     assert tested(command) == 'intf to Routing Instance'
 
 ##########################################################################
@@ -193,7 +187,7 @@ def test_ident_comm_intf_to_ri(command):
     ]
 )
 def test_ident_comm_hostname(command):
-    tested = parser_srx._ParserSRX__identify_comm 
+    tested = parser_srx._ParserSrxSets__identify_comm 
     assert tested(command) == 'hostname'
 
 ##########################################################################
@@ -219,5 +213,5 @@ def test_ident_comm_hostname(command):
     ]
 )
 def test_ident_comm_stat_nat(command):
-    tested = parser_srx._ParserSRX__identify_comm 
+    tested = parser_srx._ParserSrxSets__identify_comm 
     assert tested(command) == 'static NAT'

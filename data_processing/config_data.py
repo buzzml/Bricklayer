@@ -22,8 +22,4 @@ class ConfigDataTXT(ConfigData):
 
 
 class ConfigDataSSH(ConfigData):
-    def __init__(self):
-        pass
-
-    def get(self):
-        pass
+    pass

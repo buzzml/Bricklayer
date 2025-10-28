@@ -89,7 +89,7 @@ class ParserSrxSets(ParserSrx):
             ## Parse:
             match self.__identify_comm(line):
             ### Firewall Rule:
-                case 'fw_rule':
+                case 'fw rules':
                     result = self.__parse_fw_rule(comm_splited, logsys)
                     rule_name, key, val = result
                     self.__add_fw_rule_to_fw_data(logsys, rule_name, key, val, comm_splited)
@@ -168,6 +168,12 @@ class ParserSrxSets(ParserSrx):
             val: str,
             comm_splited: list[str]
     ):
+        zones = self.__parse_fw_rule_zones(comm_splited)
+        rule_name = f'{zones[0]};{zones[1]};{rule_name}'
+        # Rule name with source and dest zone, 
+        # because rules with same exact name can exist in
+        # different s_zone-des_zone pairs    
+
         if rule_name not in self._fw_data[logsys]['fw rules']:
             rule_data = self.__fw_rule_data_template()
             self._fw_data[logsys]['fw rules'][rule_name] = rule_data
@@ -210,7 +216,10 @@ class ParserSrxSets(ParserSrx):
                 'source-address': 'src_IP', 'destination-address': 'dst_IP',
                 'application': 'services'
             }
-            key = cat_to_key[match_cat]
+            if match_cat in cat_to_key:
+                key = cat_to_key[match_cat]
+            else:
+                key = match_cat
             result = rule_name, key, match_val
 
         elif 'then' in comm_splited:

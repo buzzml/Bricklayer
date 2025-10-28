@@ -6,7 +6,7 @@ __pycache__/
 env/
 venv/
 *.env
-test_conn_true.py
+testing_conn_true.py
 
 # IDE
 .vscode/
@@ -26,3 +26,4 @@ config_files/
 
 # Office Files
 *.xlsm
+to_do.txt

@@ -2,15 +2,22 @@ from abc import ABC, abstractmethod
 import traceback
 from netmiko import ConnectHandler
 
+## *args, **kwargs in Classes for the sake of poimorifsm,
+## not used beside that
+
 
 class ConfigData(ABC):
+    @abstractmethod
+    def __init__(self):
+        pass
+
     @abstractmethod
     def get(self):
         pass
 
 
 class ConfigDataTXT(ConfigData):
-    def __init__(self, conf_file):
+    def __init__(self, conf_file, *args, **kwargs):
         self.__conf_file = conf_file
 
     def get(self):
@@ -23,7 +30,7 @@ class ConfigDataTXT(ConfigData):
 
 
 class ConfigDataSSH(ConfigData):
-    def __init__(self, ip, user, passwd, vendor, port=22):
+    def __init__(self, ip, user, passwd, vendor, port=22, *args, **kwargs):
         self.__device = {
             'device_type': vendor,
             'host': ip,

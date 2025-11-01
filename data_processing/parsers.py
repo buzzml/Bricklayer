@@ -36,6 +36,16 @@ class Parser(ABC):
         fw_data_template['NATs'] = nat_cats
         return fw_data_template
     
+    def _fw_rule_data_template(self) -> dict[str, list[str]]:
+        keys = [
+            'src_zone', 'dst_zone', 'src_IP', 
+            'dst_IP', 'src_NAT', 'dst_NAT',
+            'term_action', 'description', 
+            'services', 'non_term_action',
+            'status'
+        ]
+        return {key:[] for key in keys}
+    
     def get_data(self):
         return self._hostname, self._fw_data
 
@@ -175,7 +185,7 @@ class ParserSrxSets(ParserSrx):
         # different s_zone-des_zone pairs    
 
         if rule_name not in self._fw_data[logsys]['fw rules']:
-            rule_data = self.__fw_rule_data_template()
+            rule_data = self._fw_rule_data_template()
             self._fw_data[logsys]['fw rules'][rule_name] = rule_data
             zones = self.__parse_fw_rule_zones(comm_splited)
             rule_data['src_zone'], rule_data['dst_zone'] = zones
@@ -230,15 +240,6 @@ class ParserSrxSets(ParserSrx):
         else:
             raise Exception(f'Firewall Rule command not processed in ParserSRX.__parse_fw_rule, \n {comm_splited}')
         return result
-
-    def __fw_rule_data_template(self) -> dict[str, list[str]]:
-        keys = [
-            'src_zone', 'dst_zone', 'src_IP', 
-            'dst_IP', 'src_NAT', 'dst_NAT',
-            'term_action', 'description', 
-            'services', 'non_term_action'
-        ]
-        return {key:[] for key in keys}
 
     def __parse_address(self, comm_splited, logsys):
         addr = comm_splited[-1]

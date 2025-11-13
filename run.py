@@ -1,37 +1,28 @@
 from data_processing.data_processors import ProcessSRX
-from data_processing.parsers import ParserSrxSets
-from data_processing.config_data import ConfigDataTXT
-from data_processing.data_writers import DataWriterJson
+from data_processing.parsers import parsers_factory
+from data_processing.config_data import config_data_factory
+from data_processing.data_writers import writers_factory
 
 
 class Generate():
-    vendors_objs = {}
+    def __call__(self, input_data_type, vendor, config_getter_args):
+        conf_getter = config_data_factory(input_data_type, **config_getter_args)
 
-    def __init__(self):
-        self.__conf_data_getters = {'txt': ConfigDataTXT}
-        self.__parsers = {'srx sets': ParserSrxSets}
-        self.__data_writers = {'json': DataWriterJson}
-
-    def __call__(self, input_data_type, parser_type, config_getter_args):
-        conf_getter = self.__conf_data_getters[input_data_type]
-        conf_getter = conf_getter(**config_getter_args) #obj init
-        
-        parser = self.__parsers[parser_type]
-        parser = parser(conf_getter) #obj init
+        parser = parsers_factory(vendor, conf_getter)
         parser.run()
 
         hostname, fwdata = parser.get_data()
         return hostname, fwdata
 
     def write_data_to_file(self, fw_data, path, data_type):
-        writer = self.__data_writers[data_type]() #obj init
+        writer = writers_factory(data_type) #obj init
         writer.write(path, fw_data)
 
 
 
 args_generate = {
     'input_data_type': 'txt',
-    'parser_type': 'srx sets',
+    'vendor': 'srx_set',
     'config_getter_args': {
         'conf_file': r'/home/obojetnie/Projekty_Python/Bricklayer/config_files/srx_sets_2.txt'
     }

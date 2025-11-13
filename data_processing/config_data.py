@@ -55,3 +55,10 @@ class ConfigDataSSH(ConfigData):
     def get(self):
         for line in self.__output:
             yield line
+
+def config_data_factory(data_type, *args, **kwargs):
+    match data_type:
+        case 'ssh':
+            return ConfigDataSSH(*args, **kwargs)
+        case 'txt':
+            return ConfigDataTXT(*args, **kwargs)

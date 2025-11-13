@@ -50,7 +50,7 @@ class Parser(ABC):
         return self._hostname, self._fw_data
 
 
-class ParserSrx(Parser):
+class ParserSrx(Parser, ABC):
     def __init__(self, conf_data: ConfigData):
         super().__init__(conf_data)
         self.__vendor = 'SRX'
@@ -300,3 +300,7 @@ class ParserSrxSets(ParserSrx):
         return nat_rule_name, key, val
 
 
+def parsers_factory(vendor, conf_getter):
+    match vendor:
+        case 'srx_set':
+            return ParserSrxSets(conf_getter)
